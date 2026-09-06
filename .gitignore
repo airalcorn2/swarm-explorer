@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.vscode
+
+# Your Swarm/Foursquare export from scripts/fetch_checkins.py (keep private) —
+# the app loads it via the file picker, it is never read from disk by the build.
+/checkins.json
+/data/
+.env
+.DS_Store
+
+# Copied from three-globe by scripts/copy-textures.mjs on npm install.
+public/textures/
+*.tsbuildinfo
+
+swarm-checkin-explorer-plan.md

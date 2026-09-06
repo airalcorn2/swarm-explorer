@@ -1,0 +1,3 @@
+# Only needed to run scripts/fetch_checkins.py (pull your history from the
+# Foursquare API). The app itself has no Python backend.
+requests>=2.31
