@@ -58,3 +58,15 @@ code {
   z-index: 15;
   max-width: 240px;
 }
+.globe-attribution {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  z-index: 12;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  max-width: 60%;
+  text-align: right;
+}

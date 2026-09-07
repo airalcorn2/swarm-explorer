@@ -8,6 +8,7 @@ import LocationFilters from "./components/LocationFilters";
 import PlayControls from "./components/PlayControls";
 import StatsPanel from "./components/StatsPanel";
 import { applyFilters, deriveLocationOptions } from "./filters";
+import { DEFAULT_GLOBE_STYLE, GLOBE_STYLES } from "./globeStyles";
 import { useDataset } from "./hooks/useDataset";
 import { usePlayback } from "./hooks/usePlayback";
 import type { Checkin, Filters } from "./types";
@@ -34,6 +35,18 @@ function readPointScale(): number {
   return POINT_SCALE_DEFAULT;
 }
 
+const GLOBE_STYLE_KEY = "swarm-explorer:globeStyle";
+
+function readGlobeStyle(): string {
+  try {
+    const raw = localStorage.getItem(GLOBE_STYLE_KEY);
+    if (raw && GLOBE_STYLES.some((s) => s.id === raw)) return raw;
+  } catch {
+    /* storage unavailable */
+  }
+  return DEFAULT_GLOBE_STYLE;
+}
+
 export default function App() {
   const data = useDataset();
   const dataset = data.dataset;
@@ -41,6 +54,7 @@ export default function App() {
   const [selected, setSelected] = useState<Checkin | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [pointScale, setPointScale] = useState(readPointScale);
+  const [globeStyle, setGlobeStyle] = useState(readGlobeStyle);
 
   useEffect(() => {
     try {
@@ -49,6 +63,14 @@ export default function App() {
       /* storage unavailable — fine, just don't persist */
     }
   }, [pointScale]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(GLOBE_STYLE_KEY, globeStyle);
+    } catch {
+      /* storage unavailable */
+    }
+  }, [globeStyle]);
 
   // Re-initialise filters from the URL whenever a dataset loads / is swapped.
   useEffect(() => {
@@ -118,6 +140,7 @@ export default function App() {
         playTarget={playback.playing ? playback.current : null}
         playing={playback.playing}
         pointScale={pointScale}
+        styleId={globeStyle}
         onSelect={setSelected}
       />
 
@@ -198,6 +221,23 @@ export default function App() {
               value={filters.note}
               onChange={(e) => patch({ note: e.target.value })}
             />
+          </div>
+
+          <div className="control">
+            <div className="control-head">
+              <span className="control-label">Globe style</span>
+            </div>
+            <select
+              className="text-input"
+              value={globeStyle}
+              onChange={(e) => setGlobeStyle(e.target.value)}
+            >
+              {GLOBE_STYLES.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="control">

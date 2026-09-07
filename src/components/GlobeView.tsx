@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import * as THREE from "three";
 import { categoryColor } from "../colors";
 import { formatDate } from "../filters";
+import { resolveGlobeStyle } from "../globeStyles";
 import { useElementSize } from "../hooks/useElementSize";
 import type { Checkin } from "../types";
 
@@ -14,11 +15,30 @@ interface Props {
   playing: boolean;
   /** User marker-size multiplier (1 = default). */
   pointScale: number;
+  /** Globe surface style id (see globeStyles.ts). */
+  styleId: string;
   onSelect: (c: Checkin | null) => void;
 }
 
 const DEFAULT_ALTITUDE = 2.2;
-const MARKER_ALTITUDE = 0.006; // sit just above the surface
+
+// Markers are baked onto the surface (r = globe radius) and then lifted a hair
+// via a uniform scale so they clear the map tiles without z-fighting. The lift
+// is tied to how far the camera sits above the surface: zoomed out it's the full
+// MARKER_ALTITUDE (markers visibly rest on the globe); zoomed in it shrinks
+// toward MIN_MARKER_ALTITUDE so a marker never floats noticeably off the spot it
+// marks. This keeps the apparent parallax ~1 degree at every zoom level.
+const MARKER_ALTITUDE = 0.006;
+const MIN_MARKER_ALTITUDE = 0.0002;
+const LIFT_PER_HEIGHT = 0.0002; // lift fraction per globe-radius of camera height
+
+function surfaceLift(camDistFromCenter: number): number {
+  const h = Math.max(camDistFromCenter - 100, 0); // camera height above surface
+  return Math.min(
+    MARKER_ALTITUDE,
+    Math.max(MIN_MARKER_ALTITUDE, LIFT_PER_HEIGHT * h),
+  );
+}
 
 // All check-in markers are drawn as one GPU point cloud (THREE.Points): a single
 // draw call for the whole history, and — with sizeAttenuation off — a constant
@@ -32,10 +52,7 @@ const HIT_SLOP_PX = 4; // pick tolerance beyond the drawn marker radius
 const AUTO_ROTATE = false;
 const AUTO_ROTATE_SPEED = 0.35;
 
-const TEX = `${import.meta.env.BASE_URL}textures/`;
-const EARTH_NIGHT = `${TEX}earth-night.jpg`;
-const EARTH_TOPOLOGY = `${TEX}earth-topology.png`;
-const NIGHT_SKY = `${TEX}night-sky.png`;
+const NIGHT_SKY = `${import.meta.env.BASE_URL}textures/night-sky.png`;
 
 /** Soft white disc so overlapping markers blend rather than hard-edge. */
 const DISC_TEXTURE = (() => {
@@ -63,7 +80,7 @@ function fillCloud(pts: THREE.Points, checkins: Checkin[]): void {
   const colors = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
     const c = checkins[i];
-    const { x, y, z } = polarToCartesian(c.lat, c.lng, MARKER_ALTITUDE);
+    const { x, y, z } = polarToCartesian(c.lat, c.lng, 0);
     positions[i * 3] = x;
     positions[i * 3 + 1] = y;
     positions[i * 3 + 2] = z;
@@ -105,11 +122,17 @@ export default function GlobeView({
   playTarget,
   playing,
   pointScale,
+  styleId,
   onSelect,
 }: Props) {
   const { ref: wrapRef, width, height } = useElementSize<HTMLDivElement>();
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const tipRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const liftRef = useRef(MARKER_ALTITUDE);
+  const cloudRef = useRef<THREE.Points | null>(null);
+
+  const style = useMemo(() => resolveGlobeStyle(styleId), [styleId]);
 
   const ringData = useMemo(() => {
     const c = playTarget ?? selected;
@@ -125,23 +148,48 @@ export default function GlobeView({
   datumRef.current.checkins = checkins;
   const cloudData = useMemo(() => [datumRef.current], [checkins]);
 
-  const makeCloud = useCallback(
-    () => buildCloud(datumRef.current.checkins, pointScaleRef.current),
-    [],
-  );
-  const updateCloud = useCallback(
-    (obj: object) => fillCloud(obj as THREE.Points, datumRef.current.checkins),
-    [],
-  );
+  const makeCloud = useCallback(() => {
+    const pts = buildCloud(datumRef.current.checkins, pointScaleRef.current);
+    pts.scale.setScalar(1 + liftRef.current);
+    cloudRef.current = pts;
+    return pts;
+  }, []);
+  const updateCloud = useCallback((obj: object) => {
+    const pts = obj as THREE.Points;
+    fillCloud(pts, datumRef.current.checkins);
+    pts.scale.setScalar(1 + liftRef.current);
+    cloudRef.current = pts;
+  }, []);
 
   // Live-resize the existing cloud when only the slider moves (no rebuild).
   useEffect(() => {
-    const pts = findCloud(globeRef.current);
+    const pts = cloudRef.current ?? findCloud(globeRef.current);
     if (pts) {
       (pts.material as THREE.PointsMaterial).size =
         BASE_MARKER_PX * pointScale * dpr();
     }
   }, [pointScale]);
+
+  // Keep the marker cloud just clear of the surface: lift scales with camera
+  // height so markers rest on the globe when zoomed out but don't visibly float
+  // off their location when zoomed in. OrbitControls fires "change" on every
+  // camera move (and damping frame), which is when the lift needs recomputing.
+  useEffect(() => {
+    if (!ready) return;
+    const g = globeRef.current;
+    if (!g) return;
+    const controls = g.controls();
+    const camera = g.camera();
+    const apply = () => {
+      const lift = surfaceLift(camera.position.length());
+      liftRef.current = lift;
+      const pts = cloudRef.current ?? findCloud(g);
+      if (pts) pts.scale.setScalar(1 + lift);
+    };
+    apply();
+    controls.addEventListener("change", apply);
+    return () => controls.removeEventListener("change", apply);
+  }, [ready]);
 
   // A one-point cloud marks the selected check-in (bigger, white).
   const highlightData = useMemo(
@@ -157,6 +205,16 @@ export default function GlobeView({
     controls.autoRotateSpeed = AUTO_ROTATE_SPEED;
   }, [playing, selected]);
 
+  // The tile engine caches tiles by x/y/z, not by URL, so switching between two
+  // tiled styles needs an explicit cache flush — and a POV nudge to refetch,
+  // since clearing alone leaves the surface blank until the camera next moves.
+  useEffect(() => {
+    const g = globeRef.current;
+    if (!g) return;
+    g.globeTileEngineClearCache?.();
+    g.pointOfView(g.pointOfView());
+  }, [style]);
+
   const handleReady = () => {
     const g = globeRef.current;
     if (!g) return;
@@ -165,6 +223,7 @@ export default function GlobeView({
     controls.autoRotate = AUTO_ROTATE;
     controls.autoRotateSpeed = AUTO_ROTATE_SPEED;
     controls.minDistance = 101;
+    setReady(true);
   };
 
   // --- pointer picking --------------------------------------------------
@@ -186,7 +245,7 @@ export default function GlobeView({
     const localY = clientY - rect.top;
     const camera = g.camera() as THREE.PerspectiveCamera;
     const camPos = camera.position;
-    const rr = (100 * (1 + MARKER_ALTITUDE)) ** 2; // |vertex|², for the facing test
+    const rr = 100 * 100; // |vertex|² at the surface, for the facing test
     const tol = (BASE_MARKER_PX * pointScaleRef.current) / 2 + HIT_SLOP_PX;
 
     const pos = pts.geometry.getAttribute("position");
@@ -263,8 +322,9 @@ export default function GlobeView({
         ref={globeRef}
         width={width || undefined}
         height={height || undefined}
-        globeImageUrl={EARTH_NIGHT}
-        bumpImageUrl={EARTH_TOPOLOGY}
+        globeImageUrl={style.tileUrl ? null : style.imageUrl ?? null}
+        bumpImageUrl={style.tileUrl ? null : style.bumpImageUrl ?? null}
+        globeTileEngineUrl={style.tileUrl ?? null}
         backgroundImageUrl={NIGHT_SKY}
         onGlobeReady={handleReady}
         atmosphereColor="#7aa2ff"
@@ -275,17 +335,21 @@ export default function GlobeView({
         objectsData={highlightData}
         objectLat="lat"
         objectLng="lng"
-        objectAltitude={MARKER_ALTITUDE}
+        objectAltitude={0}
         objectThreeObject={makeHighlight}
         ringsData={ringData}
         ringLat="lat"
         ringLng="lng"
+        ringAltitude={0}
         ringColor={() => (t: number) => `rgba(255,255,255,${Math.sqrt(1 - t)})`}
         ringMaxRadius={playTarget ? 5 : 3}
         ringPropagationSpeed={playTarget ? 4 : 2}
         ringRepeatPeriod={playTarget ? 500 : 900}
       />
       <div ref={tipRef} className="globe-tip globe-tip-float" hidden />
+      {style.attribution && (
+        <div className="globe-attribution">{style.attribution}</div>
+      )}
     </div>
   );
 }
@@ -318,6 +382,7 @@ function makeHighlight(): THREE.Points {
     map: DISC_TEXTURE,
     color: "#ffffff",
     transparent: true,
+    depthTest: false, // sits on the surface (altitude 0); skip depth to avoid z-fighting
     depthWrite: false,
     toneMapped: false,
   });

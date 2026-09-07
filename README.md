@@ -66,7 +66,7 @@ The app flags this too: the panel warns when a file has far more rows than uniqu
 ## Running locally
 
 ```bash
-npm install      # also copies the Earth textures into public/textures/
+npm install      # also copies the bundled globe textures into public/textures/
 npm run dev      # http://localhost:5173, hot-reload
 ```
 
@@ -128,6 +128,6 @@ your export.json ──► src/normalize.ts ──► Dataset ──► React ap
 
 ## Notes
 
-- The Earth textures are copied out of the `three-globe` package into `public/textures/` on `npm install` (see `scripts/copy-textures.mjs`), so the globe needs no network access at runtime.
+- **Globe style** (panel selector, `src/globeStyles.ts`): the tiled styles — Map / OpenStreetMap / Light / Satellite — stream keyless web-mercator tiles (Esri, OpenStreetMap) through globe.gl's tile engine, so the surface stays sharp at any zoom, but need a network connection. Night lights / Blue Marble use a bundled equirectangular texture (copied out of `three-globe` into `public/textures/` on `npm install`, see `scripts/copy-textures.mjs`) and work fully offline. The keyless tile hosts are fine for personal use; a high-traffic public deploy should move to a provider account.
 - Rendering is one marker per filtered check-in — comfortable into the low thousands; past that you'd want clustering (not implemented). Use the date/location filters to thin a very large history.
 - `scripts/make_sample.py` regenerates `public/checkins.sample.json` (the "Try the sample data" dataset).

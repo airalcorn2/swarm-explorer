@@ -8,7 +8,13 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const src = join(root, "node_modules", "three-globe", "example", "img");
 const dest = join(root, "public", "textures");
 
-const FILES = ["earth-night.jpg", "earth-topology.png", "night-sky.png"];
+const FILES = [
+  "earth-night.jpg",
+  "earth-blue-marble.jpg",
+  "earth-day.jpg",
+  "earth-topology.png",
+  "night-sky.png",
+];
 
 if (!existsSync(src)) {
   console.warn("[copy-textures] three-globe not installed yet, skipping");
