@@ -8,14 +8,13 @@ import type { Checkin } from "../types";
 interface Props {
   checkins: Checkin[];
   selected: Checkin | null;
-  /** Highlighted check-in during play mode; camera flies to it. */
+  /** Current check-in during play mode; gets a stronger pulsing ring. */
   playTarget: Checkin | null;
   playing: boolean;
   onSelect: (c: Checkin | null) => void;
 }
 
 const DEFAULT_ALTITUDE = 2.2;
-const FOCUS_ALTITUDE = 1.4;
 
 // Idle spin. Set to true to have the globe slowly rotate when nothing is
 // selected and playback isn't running.
@@ -46,17 +45,9 @@ export default function GlobeView({
     return c ? [c] : [];
   }, [playTarget, selected]);
 
-  // Fly the camera to a marker the user clicks. Playback deliberately never
-  // moves the camera — while it runs the user keeps full real-time control of
-  // rotation and zoom; the pulsing ring is the only cue for the current stop.
-  useEffect(() => {
-    const g = globeRef.current;
-    if (!g || playing || !selected) return;
-    g.pointOfView(
-      { lat: selected.lat, lng: selected.lng, altitude: FOCUS_ALTITUDE },
-      1000,
-    );
-  }, [selected, playing]);
+  // The camera is never moved programmatically — not on playback, not on
+  // clicking a marker. The user is always in full control of rotation and zoom;
+  // the pulsing ring is the only cue for the current / selected check-in.
 
   // Auto-rotate only when idle (nothing selected, not playing) — and only if
   // AUTO_ROTATE is enabled at all.
