@@ -180,6 +180,27 @@ export default function App() {
 
           <div className="control">
             <div className="control-head">
+              <span className="control-label">Note text</span>
+              {filters.note.trim() && (
+                <button
+                  className="link-btn"
+                  onClick={() => patch({ note: "" })}
+                >
+                  clear
+                </button>
+              )}
+            </div>
+            <input
+              type="search"
+              className="text-input"
+              placeholder="Search check-in notes"
+              value={filters.note}
+              onChange={(e) => patch({ note: e.target.value })}
+            />
+          </div>
+
+          <div className="control">
+            <div className="control-head">
               <span className="control-label">Marker size</span>
               <span className="control-value">{pointScale.toFixed(1)}×</span>
             </div>

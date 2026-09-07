@@ -7,6 +7,7 @@ export function applyFilters(checkins: Checkin[], filters: Filters): Checkin[] {
   const stateSet = new Set(filters.states);
   const countrySet = new Set(filters.countries);
   const categorySet = new Set(filters.categories);
+  const note = filters.note.trim().toLowerCase();
 
   return checkins.filter((c) => {
     if (c.timestamp < start || c.timestamp > end) return false;
@@ -16,6 +17,7 @@ export function applyFilters(checkins: Checkin[], filters: Filters): Checkin[] {
       return false;
     if (categorySet.size && (!c.category || !categorySet.has(c.category)))
       return false;
+    if (note && !c.shout?.toLowerCase().includes(note)) return false;
     return true;
   });
 }

@@ -10,6 +10,7 @@ export function defaultFilters(meta: Meta): Filters {
     states: [],
     countries: [],
     categories: [],
+    note: "",
   };
 }
 
@@ -22,6 +23,7 @@ export function filtersToParams(filters: Filters, meta: Meta): string {
   if (filters.states.length) p.set("state", filters.states.join("~"));
   if (filters.cities.length) p.set("city", filters.cities.join("~"));
   if (filters.categories.length) p.set("cat", filters.categories.join("~"));
+  if (filters.note.trim()) p.set("note", filters.note.trim());
   const s = p.toString();
   return s ? `?${s}` : "";
 }
@@ -47,5 +49,6 @@ export function filtersFromParams(search: string, meta: Meta): Filters {
     states: list("state"),
     cities: list("city"),
     categories: list("cat"),
+    note: p.get("note") ?? "",
   };
 }

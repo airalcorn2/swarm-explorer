@@ -2,7 +2,7 @@
 
 Explore your check-ins here: [https://airalcorn2.github.io/swarm-explorer/](https://airalcorn2.github.io/swarm-explorer/).
 
-A web app for exploring your personal Swarm / Foursquare check-in history on a 3D globe: date-range filtering, cascading location/category filters, and a **play mode** that reveals your check-ins one at a time in chronological order while you freely pan and zoom the globe.
+A web app for exploring your personal Swarm / Foursquare check-in history on a 3D globe: date-range filtering, cascading location/category filters, a note-text search, and a **play mode** that reveals your check-ins one at a time in chronological order while you freely pan and zoom the globe.
 
 It runs **entirely in your browser**.
 You pick your export file locally and it's parsed client-side — nothing is uploaded, there is no backend, and the app never calls the Foursquare API.
@@ -107,7 +107,7 @@ your export.json ──► src/normalize.ts ──► Dataset ──► React ap
 
 - **`src/normalize.ts`** — parses the raw export and flattens each check-in; drops ones with no usable lat/lng, de-duplicates by id, computes the date bounds and the distinct city/state/country/category sets.
 - **`src/hooks/useDataset.ts`** — owns the single loaded dataset: restores it from IndexedDB on start, or hands control to `DataLoader` (the file picker).
-- **`src/filters.ts`** — all filtering (date range, cascading country/state/city, category) and the summary stats.
+- **`src/filters.ts`** — all filtering (date range, cascading country/state/city, category, case-insensitive substring match on the note/`shout`) and the summary stats.
 - **`src/hooks/usePlayback.ts`** — chronological playback over the *filtered* set.
 - **`src/components/GlobeView.tsx`** — wraps `react-globe.gl`, progressively reveals visited markers during playback, and pulses a ring on the current / selected check-in. The camera is never moved programmatically — you always control rotation and zoom. Marker world-size is `BASE × (user "Marker size" slider) × zoom-compensation`, where the zoom term scales with camera altitude (clamped) so markers keep a roughly constant on-screen size instead of ballooning up close.
 - Filter state is mirrored to the URL query string, so a particular view can be bookmarked.

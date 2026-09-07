@@ -36,4 +36,5 @@ export interface Filters {
   states: string[];
   countries: string[];
   categories: string[];
+  note: string; // case-insensitive substring match against the check-in note (shout)
 }
