@@ -19,8 +19,9 @@ import {
 import "./App.css";
 
 const POINT_SCALE_KEY = "swarm-explorer:pointScale";
-const POINT_SCALE_MIN = 0.4;
+const POINT_SCALE_MIN = 0.2;
 const POINT_SCALE_MAX = 2.5;
+const POINT_SCALE_DEFAULT = 1.9;
 
 function readPointScale(): number {
   try {
@@ -30,7 +31,7 @@ function readPointScale(): number {
   } catch {
     /* storage unavailable */
   }
-  return 1;
+  return POINT_SCALE_DEFAULT;
 }
 
 export default function App() {

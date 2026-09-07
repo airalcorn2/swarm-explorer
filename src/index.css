@@ -52,3 +52,9 @@ code {
 .globe-tip span {
   color: var(--muted);
 }
+.globe-tip-float {
+  position: absolute;
+  pointer-events: none;
+  z-index: 15;
+  max-width: 240px;
+}
