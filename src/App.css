@@ -257,6 +257,10 @@
   margin-top: 10px;
   accent-color: var(--accent);
 }
+.range-input {
+  width: 100%;
+  accent-color: var(--accent);
+}
 .play-now {
   margin-top: 10px;
   font-size: 12px;

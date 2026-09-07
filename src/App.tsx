@@ -18,12 +18,36 @@ import {
 } from "./urlState";
 import "./App.css";
 
+const POINT_SCALE_KEY = "swarm-explorer:pointScale";
+const POINT_SCALE_MIN = 0.4;
+const POINT_SCALE_MAX = 2.5;
+
+function readPointScale(): number {
+  try {
+    const raw = Number(localStorage.getItem(POINT_SCALE_KEY));
+    if (Number.isFinite(raw) && raw >= POINT_SCALE_MIN && raw <= POINT_SCALE_MAX)
+      return raw;
+  } catch {
+    /* storage unavailable */
+  }
+  return 1;
+}
+
 export default function App() {
   const data = useDataset();
   const dataset = data.dataset;
   const [filters, setFilters] = useState<Filters | null>(null);
   const [selected, setSelected] = useState<Checkin | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [pointScale, setPointScale] = useState(readPointScale);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(POINT_SCALE_KEY, String(pointScale));
+    } catch {
+      /* storage unavailable — fine, just don't persist */
+    }
+  }, [pointScale]);
 
   // Re-initialise filters from the URL whenever a dataset loads / is swapped.
   useEffect(() => {
@@ -92,6 +116,7 @@ export default function App() {
         selected={selected}
         playTarget={playback.playing ? playback.current : null}
         playing={playback.playing}
+        pointScale={pointScale}
         onSelect={setSelected}
       />
 
@@ -152,6 +177,22 @@ export default function App() {
             filters={filters}
             onChange={patch}
           />
+
+          <div className="control">
+            <div className="control-head">
+              <span className="control-label">Marker size</span>
+              <span className="control-value">{pointScale.toFixed(1)}×</span>
+            </div>
+            <input
+              type="range"
+              className="range-input"
+              min={POINT_SCALE_MIN}
+              max={POINT_SCALE_MAX}
+              step={0.1}
+              value={pointScale}
+              onChange={(e) => setPointScale(Number(e.target.value))}
+            />
+          </div>
 
           <PlayControls
             playback={playback}

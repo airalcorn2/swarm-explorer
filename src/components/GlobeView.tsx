@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import { categoryColor } from "../colors";
 import { formatDate } from "../filters";
@@ -11,10 +11,28 @@ interface Props {
   /** Current check-in during play mode; gets a stronger pulsing ring. */
   playTarget: Checkin | null;
   playing: boolean;
+  /** User marker-size multiplier (1 = default). */
+  pointScale: number;
   onSelect: (c: Checkin | null) => void;
 }
 
 const DEFAULT_ALTITUDE = 2.2;
+
+// Marker geometry, in globe-radius units, at scale 1 / default zoom.
+const BASE_RADIUS = 0.28;
+const SELECTED_RADIUS = 0.42;
+const BASE_HEIGHT = 0.012;
+const SELECTED_HEIGHT = 0.06;
+
+// Zoom compensation: markers are drawn at a world size proportional to the
+// camera altitude, so their apparent (on-screen) size stays roughly constant
+// as you zoom. Clamped so they never vanish or swallow the globe.
+const REF_ALTITUDE = 2.2; // camera altitude at which the zoom factor is 1
+const ZOOM_FACTOR_MIN = 0.4;
+const ZOOM_FACTOR_MAX = 2.2;
+
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.min(Math.max(v, lo), hi);
 
 // Idle spin. Set to true to have the globe slowly rotate when nothing is
 // selected and playback isn't running.
@@ -34,6 +52,7 @@ export default function GlobeView({
   selected,
   playTarget,
   playing,
+  pointScale,
   onSelect,
 }: Props) {
   const { ref: wrapRef, width, height } = useElementSize<HTMLDivElement>();
@@ -44,6 +63,36 @@ export default function GlobeView({
     const c = playTarget ?? selected;
     return c ? [c] : [];
   }, [playTarget, selected]);
+
+  // Track camera altitude (coalesced to one update per frame) to drive the
+  // zoom-compensated marker size.
+  const [zoomFactor, setZoomFactor] = useState(1);
+  const pendingAltitude = useRef(REF_ALTITUDE);
+  const rafId = useRef<number | null>(null);
+
+  const handleZoom = useCallback((pov: { altitude: number }) => {
+    pendingAltitude.current = pov.altitude;
+    if (rafId.current != null) return;
+    rafId.current = requestAnimationFrame(() => {
+      rafId.current = null;
+      const next = clamp(
+        pendingAltitude.current / REF_ALTITUDE,
+        ZOOM_FACTOR_MIN,
+        ZOOM_FACTOR_MAX,
+      );
+      // Ignore sub-1% wiggle so we don't re-render the points layer needlessly.
+      setZoomFactor((prev) => (Math.abs(prev - next) > 0.01 ? next : prev));
+    });
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (rafId.current != null) cancelAnimationFrame(rafId.current);
+    },
+    [],
+  );
+
+  const scaled = (base: number) => base * pointScale * zoomFactor;
 
   // The camera is never moved programmatically — not on playback, not on
   // clicking a marker. The user is always in full control of rotation and zoom;
@@ -91,13 +140,23 @@ export default function GlobeView({
           return categoryColor(c.category);
         }}
         pointAltitude={(d) =>
-          selected && (d as Checkin).id === selected.id ? 0.08 : 0.012
+          scaled(
+            selected && (d as Checkin).id === selected.id
+              ? SELECTED_HEIGHT
+              : BASE_HEIGHT,
+          )
         }
         pointRadius={(d) =>
-          selected && (d as Checkin).id === selected.id ? 0.42 : 0.28
+          scaled(
+            selected && (d as Checkin).id === selected.id
+              ? SELECTED_RADIUS
+              : BASE_RADIUS,
+          )
         }
         pointResolution={6}
         pointsMerge={false}
+        pointsTransitionDuration={0}
+        onZoom={handleZoom}
         pointLabel={(d) => {
           const c = d as Checkin;
           const place = [c.city, c.country].filter(Boolean).join(", ");

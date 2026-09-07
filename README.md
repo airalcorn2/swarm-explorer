@@ -109,7 +109,7 @@ your export.json ──► src/normalize.ts ──► Dataset ──► React ap
 - **`src/hooks/useDataset.ts`** — owns the single loaded dataset: restores it from IndexedDB on start, or hands control to `DataLoader` (the file picker).
 - **`src/filters.ts`** — all filtering (date range, cascading country/state/city, category) and the summary stats.
 - **`src/hooks/usePlayback.ts`** — chronological playback over the *filtered* set.
-- **`src/components/GlobeView.tsx`** — wraps `react-globe.gl`, progressively reveals visited markers during playback, and pulses a ring on the current / selected check-in. The camera is never moved programmatically — you always control rotation and zoom.
+- **`src/components/GlobeView.tsx`** — wraps `react-globe.gl`, progressively reveals visited markers during playback, and pulses a ring on the current / selected check-in. The camera is never moved programmatically — you always control rotation and zoom. Marker world-size is `BASE × (user "Marker size" slider) × zoom-compensation`, where the zoom term scales with camera altitude (clamped) so markers keep a roughly constant on-screen size instead of ballooning up close.
 - Filter state is mirrored to the URL query string, so a particular view can be bookmarked.
 
 ### Normalized check-in shape
